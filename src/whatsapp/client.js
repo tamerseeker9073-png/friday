@@ -127,4 +127,17 @@ function estaConectado() {
   return isConnected;
 }
 
-module.exports = { conectar, getSock, estaConectado };
+async function cierreGraceful() {
+  console.log('[WhatsApp] Cerrando conexión gracefully...');
+  isConnected = false;
+  reconectando = false;
+  if (sock) {
+    try {
+      sock.end(); // Cierra el WebSocket sin invalidar la sesión en WhatsApp
+    } catch (e) {}
+  }
+  await new Promise(r => setTimeout(r, 1500));
+  console.log('[WhatsApp] Conexión cerrada correctamente');
+}
+
+module.exports = { conectar, getSock, estaConectado, cierreGraceful };

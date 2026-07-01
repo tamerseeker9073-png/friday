@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const { conectar } = require('./whatsapp/client');
+const { conectar, cierreGraceful } = require('./whatsapp/client');
 const { manejarMensaje } = require('./whatsapp/handler');
 const { cargarColaboradores } = require('./sheets/colaboradores');
 const { iniciarJobs, testReporteDiario } = require('./jobs/scheduler');
@@ -70,6 +70,20 @@ function esperarConexion(maxEsperaMs = 120000) {
     }, 1000);
   });
 }
+
+// Cierre graceful — Railway manda SIGTERM antes de apagar el contenedor
+// Esto cierra WhatsApp correctamente para que la próxima sesión reconecte sin QR
+process.on('SIGTERM', async () => {
+  console.log('[FRIDAY] SIGTERM recibido — cerrando correctamente...');
+  await cierreGraceful();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('[FRIDAY] SIGINT recibido — cerrando correctamente...');
+  await cierreGraceful();
+  process.exit(0);
+});
 
 process.on('uncaughtException', (err) => {
   console.error('[FRIDAY] Error no capturado:', err.message);
