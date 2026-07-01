@@ -4,8 +4,9 @@ const path = require('path');
 const STATE_FILE = path.join(process.cwd(), 'session', 'state.json');
 
 let estado = {
-  alertasEnviadas: {},   // `${taskId}:${tipo}` → timestamp
+  alertasEnviadas: {},   // `${taskId}:${tipo}` → timestamp ISO
   ultimosReportes: {},   // `${numero}:daily` → fecha YYYY-MM-DD
+  contadorAlertas: {},   // `${taskId}:${tipo}` → número de veces enviada (Fase 7)
 };
 
 function cargarEstado() {
@@ -31,16 +32,33 @@ function guardarEstado() {
 function alertaYaEnviada(taskId, tipo) {
   const key = `${taskId}:${tipo}`;
   if (!estado.alertasEnviadas[key]) return false;
-  // Las alertas de atraso se resetean cada día
-  const hoy = new Date().toISOString().split('T')[0];
-  const fechaEnviada = estado.alertasEnviadas[key].split('T')[0];
+
+  const ultimaFecha = new Date(estado.alertasEnviadas[key]);
+  const ahora = new Date();
+  const count = estado.contadorAlertas?.[key] || 0;
+
+  // Fase 7: si fue alertada 3+ veces sin resolverse → frecuencia semanal
+  if (count >= 3) {
+    const diasDesde = Math.floor((ahora - ultimaFecha) / (1000 * 60 * 60 * 24));
+    return diasDesde < 7;
+  }
+
+  const hoy = ahora.toISOString().split('T')[0];
+  const fechaEnviada = ultimaFecha.toISOString().split('T')[0];
   return fechaEnviada === hoy;
 }
 
 function marcarAlertaEnviada(taskId, tipo) {
   const key = `${taskId}:${tipo}`;
   estado.alertasEnviadas[key] = new Date().toISOString();
+  if (!estado.contadorAlertas) estado.contadorAlertas = {};
+  estado.contadorAlertas[key] = (estado.contadorAlertas[key] || 0) + 1;
   guardarEstado();
+}
+
+function getContadorAlerta(taskId, tipo) {
+  const key = `${taskId}:${tipo}`;
+  return estado.contadorAlertas?.[key] || 0;
 }
 
 function reporteYaEnviado(numero, tipo) {
@@ -63,6 +81,7 @@ function limpiarAlertasViejas() {
   for (const [key, ts] of Object.entries(estado.alertasEnviadas)) {
     if (new Date(ts) < hace30Dias) {
       delete estado.alertasEnviadas[key];
+      if (estado.contadorAlertas) delete estado.contadorAlertas[key];
     }
   }
   guardarEstado();
@@ -72,6 +91,7 @@ module.exports = {
   cargarEstado,
   alertaYaEnviada,
   marcarAlertaEnviada,
+  getContadorAlerta,
   reporteYaEnviado,
   marcarReporteEnviado,
   limpiarAlertasViejas,

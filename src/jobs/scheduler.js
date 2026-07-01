@@ -7,7 +7,8 @@ const { enviarReporteQuincenal } = require('../reports/biweekly');
 const { verificarEscalaciones } = require('../alerts/escalation');
 const { iniciarPolling } = require('../alerts/realtime');
 const { enviarANumero } = require('../whatsapp/sender');
-const { reporteYaEnviado, marcarReporteEnviado, limpiarAlertasViejas } = require('../state/manager');
+const { reporteYaEnviado, marcarReporteEnviado, limpiarAlertasViejas, alertaYaEnviada, marcarAlertaEnviada } = require('../state/manager');
+const { getClientesBajoAprovechamiento } = require('../sheets/filmmaking');
 
 const TZ = 'America/Argentina/Buenos_Aires';
 
@@ -60,12 +61,41 @@ async function enviarReportesSemanales() {
   }
 }
 
+async function verificarFilmmaking() {
+  console.log('[Scheduler] Verificando aprovechamiento filmmaking...');
+  const acunaNum = process.env.ACUNA_NUMBER;
+  if (!acunaNum) return;
+
+  const clave = `filmmaking-${new Date().toISOString().split('T')[0]}`;
+  if (alertaYaEnviada(clave, 'filmmaking')) return;
+
+  try {
+    const bajos = await getClientesBajoAprovechamiento(70);
+    if (!bajos || bajos.length === 0) return;
+
+    let msg = `📹 FRIDAY · Alerta Filmmaking\n\nClientes con aprovechamiento de jornadas bajo el 70%:\n\n`;
+    for (const { cliente, aprovechamiento, horasFact, horasTrab, jornadas } of bajos) {
+      msg += `*${cliente}*: ${aprovechamiento}% (${horasFact}hs facturadas / ${horasTrab}hs trabajadas — ${jornadas} jornadas)\n`;
+    }
+    msg += `\nRevisá la planificación de estas cuentas.`;
+
+    enviarANumero(acunaNum, msg.trim());
+    marcarAlertaEnviada(clave, 'filmmaking');
+    console.log(`[Scheduler] Alerta filmmaking enviada a Acuña (${bajos.length} clientes bajo 70%)`);
+  } catch (err) {
+    console.error('[Scheduler] Error filmmaking:', err.message);
+  }
+}
+
 function iniciarJobs() {
   // Reporte diario — 9:00 AM todos los días
   cron.schedule('0 9 * * *', enviarReportesDiarios, { timezone: TZ });
 
   // Escalaciones — 10:00 AM todos los días (después del reporte)
   cron.schedule('0 10 * * *', verificarEscalaciones, { timezone: TZ });
+
+  // Filmmaking aprovechamiento — 11:30 AM todos los días hábiles (Fase 6)
+  cron.schedule('30 11 * * 1-5', verificarFilmmaking, { timezone: TZ });
 
   // Reporte semanal — viernes 17:00
   cron.schedule('0 17 * * 5', enviarReportesSemanales, { timezone: TZ });
@@ -79,7 +109,7 @@ function iniciarJobs() {
   // Alertas en tiempo real — polling cada 3 minutos
   iniciarPolling();
 
-  console.log('[Scheduler] Jobs iniciados: diario 9AM, escalaciones 10AM, semanal viernes 17hs, quincenal días 1 y 16');
+  console.log('[Scheduler] Jobs iniciados: diario 9AM, escalaciones 10AM, filmmaking 11:30 L-V, semanal viernes 17hs, quincenal días 1 y 16');
 }
 
 // numeroTest: número al que llega el mensaje
