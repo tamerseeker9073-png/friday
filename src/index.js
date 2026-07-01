@@ -5,7 +5,8 @@ const { manejarMensaje } = require('./whatsapp/handler');
 const { cargarColaboradores } = require('./sheets/colaboradores');
 const { iniciarJobs, testReporteDiario } = require('./jobs/scheduler');
 const { cargarEstado } = require('./state/manager');
-const { iniciarHealthcheck } = require('./healthcheck');
+const { iniciarHealthcheck, registrarSender } = require('./healthcheck');
+const { enviarANumero } = require('./whatsapp/sender');
 
 const TEST_NUMBER = process.env.TEST_NUMBER;
 
@@ -18,6 +19,7 @@ async function main() {
 
   // 1. Health check HTTP (Railway necesita esto para saber que el servicio está vivo)
   iniciarHealthcheck();
+  registrarSender(enviarANumero);
 
   // 2. Cargar estado persistente
   cargarEstado();
