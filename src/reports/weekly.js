@@ -1,29 +1,26 @@
-const { getTareasDeColaborador } = require('../clickup/tasks');
+const { getTareasTodos, clasificarTareasParaColaborador, estaTerminada } = require('../clickup/tasks');
 const { generarTexto } = require('../brain/claude');
 const { inicioSemana, finSemana, formatearFecha, fechaEnRango } = require('../utils/dates');
 const { separador } = require('../utils/format');
 
-const ESTADOS_TERMINADO = ['terminado', 'complete', 'closed', 'done'];
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-async function construirReporteSemanal(colaborador) {
+async function construirReporteSemanal(colaborador, todasLasTareas) {
   if (!colaborador.clickupId) return null;
 
-  const tareas = await getTareasDeColaborador(colaborador.clickupId);
   const desde = inicioSemana();
   const hasta = finSemana();
 
-  const completadasSemana = tareas.filter(t =>
-    ESTADOS_TERMINADO.includes(t.estado?.toLowerCase()) &&
-    t.creadaEn && fechaEnRango(t.creadaEn, desde, hasta)
+  const propias = todasLasTareas.filter(t =>
+    t.asignados.some(a => a.id === String(colaborador.clickupId))
   );
 
-  const atrasadas = tareas.filter(t =>
-    !ESTADOS_TERMINADO.includes(t.estado?.toLowerCase()) &&
-    t.fechaLimite && new Date(t.fechaLimite) < new Date()
+  const completadasSemana = propias.filter(t =>
+    estaTerminada(t) && t.creadaEn && fechaEnRango(t.creadaEn, desde, hasta)
   );
 
-  const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  const d = new Date();
+  const { atrasadas } = clasificarTareasParaColaborador(todasLasTareas, colaborador.clickupId);
+
   const inicioTexto = `${desde.getDate()} de ${MESES[desde.getMonth()]}`;
   const finTexto = `${hasta.getDate()} de ${MESES[hasta.getMonth()]}`;
 
@@ -33,21 +30,27 @@ async function construirReporteSemanal(colaborador) {
   partes.push('');
   partes.push(separador());
   partes.push(`Tareas completadas esta semana: *${completadasSemana.length}*`);
-  partes.push(`Atrasadas: *${atrasadas.length}*`);
+  partes.push(`Tareas atrasadas: *${atrasadas.length}*`);
   partes.push('');
+
+  if (atrasadas.length > 0) {
+    partes.push('*Pendientes que arrastras:*');
+    for (const t of atrasadas.slice(0, 5)) {
+      partes.push(`  • ${t.nombre} (${t.cliente}) — vencía ${formatearFecha(t.fechaLimite)}`);
+    }
+    partes.push('');
+  }
 
   try {
     const systemPrompt = `Sos FRIDAY, asistente operativo de Repanic & Barsante.
-Escribí un resumen semanal breve (3-4 oraciones) para ${colaborador.nombre}.
-Datos: ${completadasSemana.length} tareas completadas, ${atrasadas.length} atrasadas.
-Tono: cercano, directo, evaluativo. Incluí próximos pasos concretos.`;
+Escribí un resumen semanal para ${colaborador.nombre} (2-3 oraciones de conclusión + 2-3 oraciones de próximos pasos).
+Datos: ${completadasSemana.length} completadas esta semana, ${atrasadas.length} atrasadas.
+Tono: cercano, evaluativo, concreto.`;
 
     const texto = await generarTexto(systemPrompt, 'Generá el resumen semanal.', 400);
     partes.push('*Conclusión semanal:*');
+    partes.push(separador());
     partes.push(texto.trim());
-    partes.push('');
-    partes.push('*Próximos pasos:*');
-    partes.push('_(Ver tareas próximas en el reporte de mañana lunes)_');
   } catch (err) {
     console.error(`[Weekly] Error generando resumen para ${colaborador.nombre}:`, err.message);
   }
