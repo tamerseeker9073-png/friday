@@ -8,70 +8,110 @@ const {
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 const path = require('path');
+const fs = require('fs');
 
 const SESSION_DIR = path.join(process.cwd(), 'session');
 
 let sock = null;
 let isConnected = false;
+let onMessageHandler = null;
+let reconectando = false;
 
 async function conectar(onMessage) {
-  const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
-  const { version } = await fetchLatestBaileysVersion();
+  if (onMessage) onMessageHandler = onMessage;
+  if (reconectando) return;
+  reconectando = true;
 
-  sock = makeWASocket({
-    version,
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })),
-    },
-    printQRInTerminal: false,
-    logger: pino({ level: 'silent' }),
-    generateHighQualityLinkPreview: false,
-    syncFullHistory: false,
-  });
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
+    const { version } = await fetchLatestBaileysVersion();
 
-  sock.ev.on('creds.update', saveCreds);
+    sock = makeWASocket({
+      version,
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })),
+      },
+      printQRInTerminal: false,
+      logger: pino({ level: 'silent' }),
+      generateHighQualityLinkPreview: false,
+      syncFullHistory: false,
+      keepAliveIntervalMs: 30000,       // Ping cada 30s para mantener conexión
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      retryRequestDelayMs: 2000,
+    });
 
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update;
+    sock.ev.on('creds.update', saveCreds);
 
-    if (qr) {
-      console.log('\n[FRIDAY] Escaneá este QR con WhatsApp:');
-      qrcode.generate(qr, { small: true });
-    }
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
 
-    if (connection === 'close') {
-      isConnected = false;
-      const codigo = lastDisconnect?.error?.output?.statusCode;
-      const debeReconectar = codigo !== DisconnectReason.loggedOut;
-
-      console.log(`[WhatsApp] Conexión cerrada (código ${codigo}). Reconectar: ${debeReconectar}`);
-
-      if (debeReconectar) {
-        setTimeout(() => conectar(onMessage), 5000);
-      } else {
-        console.error('[WhatsApp] Sesión cerrada. Borrá la carpeta session/ y reiniciá para escanear el QR de nuevo.');
-        process.exit(1);
+      if (qr) {
+        console.log('\n[FRIDAY] Escaneá este QR con WhatsApp:');
+        qrcode.generate(qr, { small: true });
       }
-    }
 
-    if (connection === 'open') {
-      isConnected = true;
-      console.log('[FRIDAY] ✅ WhatsApp conectado');
-    }
-  });
+      if (connection === 'close') {
+        isConnected = false;
+        reconectando = false;
+        const codigo = lastDisconnect?.error?.output?.statusCode;
+        console.log(`[WhatsApp] Conexión cerrada (código ${codigo})`);
 
-  if (onMessage) {
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type !== 'notify') return;
-      for (const msg of messages) {
-        if (msg.key.fromMe) continue;
-        onMessage(msg);
+        if (codigo === DisconnectReason.loggedOut) {
+          // Sesión inválida — limpiar y reconectar para mostrar QR nuevo
+          console.log('[WhatsApp] Sesión inválida. Limpiando y mostrando QR nuevo...');
+          limpiarSession();
+          setTimeout(() => conectar(onMessageHandler), 3000);
+        } else if (codigo === DisconnectReason.restartRequired) {
+          console.log('[WhatsApp] Reinicio requerido. Reconectando...');
+          setTimeout(() => conectar(onMessageHandler), 2000);
+        } else {
+          // Cualquier otro error — reconectar con backoff
+          const delay = 5000 + Math.random() * 5000;
+          console.log(`[WhatsApp] Reconectando en ${Math.round(delay / 1000)}s...`);
+          setTimeout(() => conectar(onMessageHandler), delay);
+        }
+      }
+
+      if (connection === 'open') {
+        isConnected = true;
+        reconectando = false;
+        console.log('[FRIDAY] ✅ WhatsApp conectado');
       }
     });
+
+    if (onMessageHandler) {
+      sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify') return;
+        for (const msg of messages) {
+          if (msg.key.fromMe) continue;
+          onMessageHandler(msg);
+        }
+      });
+    }
+
+  } catch (err) {
+    reconectando = false;
+    console.error('[WhatsApp] Error al conectar:', err.message);
+    setTimeout(() => conectar(onMessageHandler), 10000);
   }
 
   return sock;
+}
+
+function limpiarSession() {
+  try {
+    const archivos = fs.readdirSync(SESSION_DIR);
+    for (const archivo of archivos) {
+      if (archivo !== 'state.json') { // Preservar el estado de FRIDAY
+        fs.unlinkSync(path.join(SESSION_DIR, archivo));
+      }
+    }
+    console.log('[WhatsApp] Sesión limpiada');
+  } catch (err) {
+    console.error('[WhatsApp] Error limpiando sesión:', err.message);
+  }
 }
 
 function getSock() {

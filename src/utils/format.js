@@ -18,7 +18,7 @@ function formatearTareaAtrasada(tarea) {
   const cliente = tarea.cliente || tarea.lista || 'sin cliente';
   const demora_texto = demora === 1 ? '1 día' : `${demora} días`;
 
-  return `${emoji} *${tarea.nombre}*\n` +
+  return `${emoji} Tarea: *${tarea.nombre}*\n` +
          `   Cliente: ${cliente}\n` +
          `   Fecha límite: ${formatearFecha(tarea.fechaLimite)}\n` +
          `   Demora: ${demora_texto}\n` +
@@ -28,7 +28,7 @@ function formatearTareaAtrasada(tarea) {
 function formatearTareaSimple(tarea) {
   const cliente = tarea.cliente || tarea.lista || 'sin cliente';
   const fecha = tarea.fechaLimite ? formatearFecha(tarea.fechaLimite) : 'sin fecha';
-  return `• *${tarea.nombre}*\n   Cliente: ${cliente} · Vence: ${fecha}`;
+  return `• Tarea: *${tarea.nombre}*\n   Cliente: ${cliente} · Vence: ${fecha}`;
 }
 
 function separador() {
