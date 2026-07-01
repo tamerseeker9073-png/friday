@@ -86,6 +86,11 @@ async function conectar(onMessage) {
         if (type !== 'notify') return;
         for (const msg of messages) {
           if (msg.key.fromMe) continue;
+          const jid = msg.key.remoteJid;
+          // Log grupos para capturar GRUPO_GENERAL_ID
+          if (jid?.includes('@g.us')) {
+            console.log(`[Group] Mensaje de grupo recibido. JID: ${jid}`);
+          }
           onMessageHandler(msg);
         }
       });
