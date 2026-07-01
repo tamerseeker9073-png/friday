@@ -6,12 +6,11 @@ function iniciarHealthcheck() {
 
   const server = http.createServer((req, res) => {
     if (req.url === '/health') {
-      const conectado = estaConectado();
-      const status = conectado ? 200 : 503;
-      res.writeHead(status, { 'Content-Type': 'application/json' });
+      // Siempre 200 — Railway solo debe reiniciar si el proceso muere, no si WA se desconecta temporalmente
+      res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        status: conectado ? 'ok' : 'disconnected',
-        whatsapp: conectado,
+        status: estaConectado() ? 'ok' : 'reconnecting',
+        whatsapp: estaConectado(),
         timestamp: new Date().toISOString(),
       }));
     } else {

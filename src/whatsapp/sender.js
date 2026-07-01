@@ -1,8 +1,9 @@
-const { getSock } = require('./client');
+const { getSock, estaConectado } = require('./client');
 
 const cola = [];
 let procesando = false;
 const DELAY_MS = 2500;
+const MAX_REINTENTOS = 3;
 
 function jidDeNumero(numero) {
   const limpio = numero.replace(/\D/g, '');
@@ -10,7 +11,7 @@ function jidDeNumero(numero) {
 }
 
 function encolar(jid, texto) {
-  cola.push({ jid, texto });
+  cola.push({ jid, texto, intentos: 0 });
   if (!procesando) procesarCola();
 }
 
@@ -21,19 +22,34 @@ function enviarANumero(numero, texto) {
 async function procesarCola() {
   procesando = true;
   while (cola.length > 0) {
-    const { jid, texto } = cola.shift();
+    const item = cola[0];
+
+    // Esperar hasta que WhatsApp esté conectado (máx 60s)
+    if (!estaConectado()) {
+      console.log('[Sender] Esperando reconexión de WhatsApp...');
+      await esperar(5000);
+      continue;
+    }
+
+    cola.shift();
+
     try {
       const sock = getSock();
-      if (!sock) {
-        console.error('[Sender] WhatsApp no está conectado, reencolando...');
-        cola.unshift({ jid, texto });
-        await esperar(5000);
-        continue;
-      }
-      await sock.sendMessage(jid, { text: texto });
+      await sock.sendMessage(item.jid, { text: item.texto });
     } catch (err) {
-      console.error(`[Sender] Error enviando a ${jid}:`, err.message);
+      console.error(`[Sender] Error enviando a ${item.jid}:`, err.message);
+
+      // Reintentar hasta MAX_REINTENTOS veces
+      if (item.intentos < MAX_REINTENTOS) {
+        item.intentos++;
+        cola.unshift(item); // Volver al frente de la cola
+        await esperar(3000);
+        continue;
+      } else {
+        console.error(`[Sender] Descartando mensaje a ${item.jid} después de ${MAX_REINTENTOS} intentos`);
+      }
     }
+
     await esperar(DELAY_MS);
   }
   procesando = false;
