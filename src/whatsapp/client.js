@@ -59,10 +59,10 @@ async function conectar(onMessage) {
         console.log(`[WhatsApp] Conexión cerrada (código ${codigo})`);
 
         if (codigo === DisconnectReason.loggedOut) {
-          // Sesión inválida — limpiar y reconectar para mostrar QR nuevo
-          console.log('[WhatsApp] Sesión inválida. Limpiando y mostrando QR nuevo...');
-          limpiarSession();
-          setTimeout(() => conectar(onMessageHandler), 3000);
+          // NO borrar la sesión automáticamente — solo reconectar
+          // Baileys mostrará QR si la sesión realmente es inválida
+          console.log('[WhatsApp] Código 401 recibido. Reconectando sin borrar sesión...');
+          setTimeout(() => conectar(onMessageHandler), 5000);
         } else if (codigo === DisconnectReason.restartRequired) {
           console.log('[WhatsApp] Reinicio requerido. Reconectando...');
           setTimeout(() => conectar(onMessageHandler), 2000);
