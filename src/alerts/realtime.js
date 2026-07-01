@@ -85,9 +85,12 @@ async function verificarTareasNuevas() {
 
 function iniciarPolling() {
   const INTERVALO_MS = 3 * 60 * 1000; // 3 minutos
-  verificarTareasNuevas(); // Primera corrida inmediata
-  setInterval(verificarTareasNuevas, INTERVALO_MS);
-  console.log('[Realtime] Polling iniciado (cada 3 minutos)');
+  // Esperar 30s al arranque para que WhatsApp se conecte antes del primer poll
+  setTimeout(() => {
+    verificarTareasNuevas();
+    setInterval(verificarTareasNuevas, INTERVALO_MS);
+  }, 30000);
+  console.log('[Realtime] Polling iniciado (cada 3 minutos, primer check en 30s)');
 }
 
 module.exports = { iniciarPolling, verificarTareasNuevas };

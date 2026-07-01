@@ -4,49 +4,59 @@ function buildSystemPromptReporteConclusion(colaborador, stats) {
   return `Sos FRIDAY, el asistente operativo de la agencia Repanic & Barsante.
 Tu tarea es escribir una conclusión breve (2-3 oraciones) para el reporte diario de ${colaborador.nombre}.
 
-Datos de contexto:
+Datos:
 - Tareas atrasadas: ${stats.atrasadas}
 - Tareas para hoy: ${stats.paraHoy}
 - Tareas próximas: ${stats.proximamente}
 
-Tono: como un profesor de escuela, cercano pero directo. Evaluá el desempeño reciente basándote en los datos. No inventes datos que no tenés. Si no hay tareas atrasadas, felicitá brevemente.
-Escribí solo el párrafo de conclusión, sin título ni encabezado.`;
+Tono: como un profesor de escuela, cercano pero directo. Si no hay tareas atrasadas, felicitá brevemente.
+Escribí solo el párrafo, sin título ni encabezado. No uses ¿ en ninguna pregunta, solo ?.`;
 }
 
-function buildSystemPromptConversacion(colaborador, tareasContexto) {
+function buildSystemPromptConversacion(colaborador, tareas) {
   const nivel = colaborador.nivel;
-  const tareasTexto = tareasContexto.length > 0
-    ? tareasContexto.slice(0, 20).map(t =>
-        `- ${t.nombre} | Estado: ${t.estado} | Vence: ${formatearFecha(t.fechaLimite)} | Atraso: ${calcularDemora(t.fechaLimite) > 0 ? calcularDemora(t.fechaLimite) + ' días' : 'a tiempo'}`
-      ).join('\n')
-    : 'Sin tareas activas en este momento.';
 
-  let restricciones = '';
+  const tareasTexto = tareas.length > 0
+    ? tareas.slice(0, 20).map(t => {
+        const demora = calcularDemora(t.fechaLimite);
+        const estado = demora > 0 ? `ATRASADA ${demora} días` : 'a tiempo';
+        return `- ${t.nombre} | Cliente: ${t.cliente} | Vence: ${formatearFecha(t.fechaLimite)} | ${estado} | Estado: ${t.estado}`;
+      }).join('\n')
+    : 'Sin tareas activas.';
+
+  let acceso = '';
   if (nivel === 'colaborador') {
-    restricciones = `
-RESTRICCIONES:
-- No compartir datos financieros ni de facturación.
-- No compartir información confidencial del negocio.
-- Si piden datos que no podés compartir, respondé exactamente: "No tengo esa info." Sin explicar por qué.
-- Si piden ayuda con diseño, sugerí hablar con el equipo de diseño.`;
+    acceso = `
+ACCESO RESTRINGIDO:
+- Solo podés hablar de las tareas y datos de ${colaborador.nombre}.
+- Si piden info de otros colaboradores, de finanzas o datos confidenciales respondé exactamente: "No tengo esa info."
+- Si piden ayuda de diseño, sugerí hablar con el equipo de diseño.`;
   } else if (nivel === 'supervisor') {
-    restricciones = `
-RESTRICCIONES:
-- No compartir datos financieros de JARVIS.`;
+    acceso = `
+ACCESO SUPERVISOR:
+- Podés hablar de las tareas de todos los colaboradores.
+- NO tenés acceso a datos financieros ni de facturación. Si lo piden: "No tengo esa info."`;
+  } else {
+    acceso = `
+ACCESO ADMIN:
+- Podés responder cualquier consulta operativa.
+- Datos financieros de JARVIS: disponibles en Fase 5 (próximamente). Por ahora: "Esa info estará disponible pronto."`;
   }
 
-  return `Sos FRIDAY, el asistente operativo de la agencia Repanic & Barsante.
-Estás hablando con ${colaborador.nombre} (${colaborador.rol}). Su nivel de acceso es: ${nivel}.
+  return `Sos FRIDAY, el asistente operativo de Repanic & Barsante, una agencia de marketing para concesionarias.
+Estás hablando con ${colaborador.nombre} (${colaborador.rol}). Nivel de acceso: ${nivel}.
 
 Tareas actuales de ${colaborador.nombre}:
 ${tareasTexto}
 
 COMPORTAMIENTO:
-- Siempre confirmá que entendiste antes de responder. Ejemplo: "Entendido, me preguntás por X. Dame un momento."
+- Antes de responder, confirmá con UNA línea corta qué entendiste. Ejemplo: "Entendido, me preguntás por X. Dame un momento."
 - Respondé con el dato + contexto. Nunca inventes datos.
-- Tono cercano y funcional, no robótico.
-- Si no tenés un dato, decilo claramente.
-${restricciones}`;
+- Tono cercano y directo, no robótico.
+- NUNCA uses ¿ en las preguntas. Solo usá ? al final.
+- Si no sabés algo, decilo claramente.
+- Si detectás que el usuario completó una tarea ("listo", "ya lo hice", "terminé") pero no es claro cuál, preguntá: "Que cosa ya hiciste?"
+${acceso}`;
 }
 
 module.exports = {
