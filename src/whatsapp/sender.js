@@ -36,8 +36,9 @@ async function procesarCola() {
     try {
       const sock = getSock();
       await sock.sendMessage(item.jid, { text: item.texto });
+      console.log(`[Sender] ✅ Enviado a ${item.jid} (intento ${item.intentos + 1})`);
     } catch (err) {
-      console.error(`[Sender] Error enviando a ${item.jid}:`, err.message);
+      console.error(`[Sender] ❌ Error enviando a ${item.jid} (intento ${item.intentos + 1}):`, err.message);
 
       // Reintentar hasta MAX_REINTENTOS veces
       if (item.intentos < MAX_REINTENTOS) {
@@ -46,7 +47,7 @@ async function procesarCola() {
         await esperar(3000);
         continue;
       } else {
-        console.error(`[Sender] Descartando mensaje a ${item.jid} después de ${MAX_REINTENTOS} intentos`);
+        console.error(`[Sender] ⛔ Descartando mensaje a ${item.jid} después de ${MAX_REINTENTOS} intentos`);
       }
     }
 

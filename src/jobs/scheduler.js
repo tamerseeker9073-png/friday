@@ -9,8 +9,13 @@ const { iniciarPolling } = require('../alerts/realtime');
 const { enviarANumero } = require('../whatsapp/sender');
 const { reporteYaEnviado, marcarReporteEnviado, limpiarAlertasViejas, alertaYaEnviada, marcarAlertaEnviada } = require('../state/manager');
 const { getClientesBajoAprovechamiento } = require('../sheets/filmmaking');
+const { generarInformeJarvis, esUltimoDiaDelMes } = require('../reports/jarvis-monthly');
 
 const TZ = 'America/Argentina/Buenos_Aires';
+
+// Flag para activar el informe mensual JARVIS.
+// Cuando los tags de ClickUp estén normalizados, setear JARVIS_MONTHLY_ENABLED=true en Railway.
+const JARVIS_MONTHLY_ENABLED = process.env.JARVIS_MONTHLY_ENABLED === 'true';
 
 async function enviarReportesDiarios() {
   console.log('[Scheduler] Iniciando reportes diarios...');
@@ -105,6 +110,18 @@ function iniciarJobs() {
 
   // Limpieza de estado viejo — domingos a medianoche
   cron.schedule('0 0 * * 0', limpiarAlertasViejas, { timezone: TZ });
+
+  // Informe mensual a JARVIS — corre días 28-31 a las 9AM y verifica si es el último día del mes.
+  // DESACTIVADO por defecto. Activar seteando JARVIS_MONTHLY_ENABLED=true en Railway
+  // una vez que los tags de ClickUp (simple, complejo, flyer-simple, flyer-complejo) estén normalizados.
+  if (JARVIS_MONTHLY_ENABLED) {
+    cron.schedule('0 9 28,29,30,31 * *', async () => {
+      if (esUltimoDiaDelMes()) await generarInformeJarvis();
+    }, { timezone: TZ });
+    console.log('[Scheduler] Informe mensual JARVIS: ACTIVADO (corre último día del mes 9AM)');
+  } else {
+    console.log('[Scheduler] Informe mensual JARVIS: DESACTIVADO (setear JARVIS_MONTHLY_ENABLED=true para activar)');
+  }
 
   // Alertas en tiempo real — polling cada 3 minutos
   iniciarPolling();
