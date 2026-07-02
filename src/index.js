@@ -1,5 +1,29 @@
 require('dotenv').config();
 
+// Restaurar sesión de WhatsApp desde env var si no hay archivos locales
+// Esto permite que Railway arranque con la sesión guardada sin necesitar QR
+(function restaurarSesionDesdeEnv() {
+  const b64 = process.env.WHATSAPP_SESSION_B64;
+  if (!b64) return;
+  const fs = require('fs');
+  const path = require('path');
+  const { execSync } = require('child_process');
+  const sessionDir = path.join(process.cwd(), 'session');
+  try {
+    const archivos = fs.existsSync(sessionDir) ? fs.readdirSync(sessionDir) : [];
+    const tieneCreds = archivos.includes('creds.json');
+    if (tieneCreds) return; // Ya hay sesión — no sobreescribir
+    if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+    const tarPath = path.join(sessionDir, '_session.tar.gz');
+    fs.writeFileSync(tarPath, Buffer.from(b64, 'base64'));
+    execSync(`tar -xzf "${tarPath}" -C "${sessionDir}"`);
+    fs.unlinkSync(tarPath);
+    console.log('[Session] Sesión restaurada desde WHATSAPP_SESSION_B64 ✅');
+  } catch (err) {
+    console.error('[Session] Error restaurando sesión:', err.message);
+  }
+})();
+
 const { conectar, cierreGraceful } = require('./whatsapp/client');
 const { manejarMensaje } = require('./whatsapp/handler');
 const { cargarColaboradores } = require('./sheets/colaboradores');

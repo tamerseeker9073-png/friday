@@ -19,6 +19,7 @@
     "googleapis": "^144.0.0",
     "node-cron": "^3.0.3",
     "pino": "^9.6.0",
+    "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0"
   }
 }
