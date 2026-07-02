@@ -7,6 +7,8 @@ const { agregarMensaje, getHistorial } = require('../brain/memory');
 const { setPendiente, getPendiente, limpiarPendiente, esConfirmacion, esNegacion } = require('../brain/confirmations');
 const { getDatosJarvis } = require('../sheets/jarvis');
 const { enviarANumero } = require('./sender');
+const { construirReporteDiario } = require('../reports/daily');
+const { getColaboradores } = require('../sheets/colaboradores');
 
 const NUMEROS_AUTORIZADOS = () =>
   (process.env.WHATSAPP_AUTHORIZED_NUMBERS || '').split(',').map(n => n.trim());
@@ -48,6 +50,12 @@ async function manejarMensaje(msg) {
     };
 
     console.log(`[Handler] ${perfil.nombre}: "${texto.substring(0, 60)}"`);
+
+    // ── Comandos admin (solo nivel admin, prefijo !) ───────────────────────
+    if (texto.startsWith('!') && perfil.nivel === 'admin') {
+      await manejarComandoAdmin(numero, texto.slice(1).trim(), perfil);
+      return;
+    }
 
     // ── FASE 4: Manejo de confirmación pendiente ──────────────────────────
     const pendiente = getPendiente(numero);
@@ -139,6 +147,58 @@ async function manejarMensaje(msg) {
   } catch (err) {
     console.error('[Handler] Error general:', err.message);
   }
+}
+
+async function manejarComandoAdmin(numeroAdmin, comando, perfil) {
+  const args = comando.toLowerCase().split(' ');
+  const cmd = args[0];
+
+  // !recordatorio <nombre> — envía reporte de tareas a ese colaborador
+  if (cmd === 'recordatorio' || cmd === 'reporte') {
+    const nombre = args.slice(1).join(' ');
+    if (!nombre) {
+      enviarANumero(numeroAdmin, 'Uso: !recordatorio <nombre>\nEjemplo: !recordatorio galo');
+      return;
+    }
+    const colaboradores = await getColaboradores();
+    const encontrado = [...colaboradores.values()].find(c =>
+      c.nombre.toLowerCase().includes(nombre)
+    );
+    if (!encontrado) {
+      enviarANumero(numeroAdmin, `No encontré colaborador con nombre "${nombre}".`);
+      return;
+    }
+    const todasLasTareas = await getTareasTodos();
+    const reporte = await construirReporteDiario(encontrado, todasLasTareas);
+    if (reporte) {
+      const numeroColab = [...colaboradores.entries()]
+        .find(([, c]) => c.nombre === encontrado.nombre)?.[0];
+      if (numeroColab) {
+        enviarANumero(numeroColab, reporte);
+        enviarANumero(numeroAdmin, `Reporte enviado a ${encontrado.nombre} ✅`);
+      }
+    } else {
+      enviarANumero(numeroAdmin, `${encontrado.nombre} no tiene tareas activas.`);
+    }
+    return;
+  }
+
+  // !estado — resumen del sistema
+  if (cmd === 'estado') {
+    const { estaConectado } = require('./client');
+    const colaboradores = await getColaboradores();
+    const msg = `FRIDAY · Estado del sistema\n\n` +
+      `WhatsApp: ${estaConectado() ? '✅ Conectado' : '❌ Desconectado'}\n` +
+      `Colaboradores cargados: ${colaboradores.size}\n` +
+      `Hora servidor: ${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}\n\n` +
+      `Comandos disponibles:\n` +
+      `• !recordatorio <nombre>\n` +
+      `• !estado`;
+    enviarANumero(numeroAdmin, msg);
+    return;
+  }
+
+  enviarANumero(numeroAdmin, `Comando no reconocido: !${cmd}\n\nComandos disponibles:\n• !recordatorio <nombre>\n• !estado`);
 }
 
 module.exports = { manejarMensaje };
