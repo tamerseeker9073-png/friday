@@ -2,7 +2,9 @@ const http = require('http');
 const { estaConectado } = require('./whatsapp/client');
 
 let _enviarANumero = null;
+let _onMessageMeta = null;
 function registrarSender(fn) { _enviarANumero = fn; }
+function registrarHandlerMeta(fn) { _onMessageMeta = fn; }
 
 function leerBody(req) {
   return new Promise((resolve) => {
@@ -26,6 +28,51 @@ function iniciarHealthcheck() {
         whatsapp: estaConectado(),
         timestamp: new Date().toISOString(),
       }));
+      return;
+    }
+
+    // Webhook Meta — GET /webhook (verificación)
+    if (req.method === 'GET' && req.url?.startsWith('/webhook')) {
+      const params = new URL(req.url, 'http://localhost').searchParams;
+      const mode      = params.get('hub.mode');
+      const token     = params.get('hub.verify_token');
+      const challenge = params.get('hub.challenge');
+      const WEBHOOK_TOKEN = process.env.WA_WEBHOOK_SECRET || '';
+      if (mode === 'subscribe' && token === WEBHOOK_TOKEN) {
+        console.log('[Webhook] Verificación Meta OK');
+        res.writeHead(200);
+        res.end(challenge);
+      } else {
+        console.warn('[Webhook] Verificación fallida — token incorrecto');
+        res.writeHead(403);
+        res.end('Forbidden');
+      }
+      return;
+    }
+
+    // Webhook Meta — POST /webhook (mensajes entrantes)
+    if (req.method === 'POST' && req.url === '/webhook') {
+      const body = await leerBody(req);
+      try {
+        const entry   = body?.entry?.[0];
+        const changes = entry?.changes?.[0];
+        const value   = changes?.value;
+        const msgs    = value?.messages;
+        if (msgs && msgs.length > 0) {
+          for (const msg of msgs) {
+            const from = msg.from; // número sin @s.whatsapp.net
+            const text = msg.text?.body || '';
+            if (from && text) {
+              console.log(`[Webhook] Mensaje de ${from}: "${text.substring(0, 60)}"`);
+              if (_onMessageMeta) _onMessageMeta(from, text);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Webhook] Error procesando mensaje:', err.message);
+      }
+      res.writeHead(200);
+      res.end('OK');
       return;
     }
 
@@ -64,4 +111,4 @@ function iniciarHealthcheck() {
   });
 }
 
-module.exports = { iniciarHealthcheck, registrarSender };
+module.exports = { iniciarHealthcheck, registrarSender, registrarHandlerMeta };
