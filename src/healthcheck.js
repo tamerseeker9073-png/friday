@@ -1,5 +1,6 @@
 const http = require('http');
-const { estaConectado } = require('./whatsapp/client');
+const QRCode = require('qrcode');
+const { estaConectado, getQR } = require('./whatsapp/client');
 
 let _enviarANumero = null;
 let _onMessageMeta = null;
@@ -28,6 +29,31 @@ function iniciarHealthcheck() {
         whatsapp: estaConectado(),
         timestamp: new Date().toISOString(),
       }));
+      return;
+    }
+
+    // Vincular WhatsApp escaneando el QR desde el navegador
+    if (req.url === '/qr') {
+      if (estaConectado()) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body style="font-family:sans-serif;text-align:center;padding:40px"><h2>✅ FRIDAY ya está conectado a WhatsApp</h2></body></html>');
+        return;
+      }
+      const qr = getQR();
+      if (!qr) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#fff"><h2>⏳ Generando QR... refrescá en 5 segundos</h2><script>setTimeout(()=>location.reload(),5000)</script></body></html>');
+        return;
+      }
+      const dataUrl = await QRCode.toDataURL(qr, { width: 380 });
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(`<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#fff">
+        <h2>FRIDAY — Vincular WhatsApp</h2>
+        <p>WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
+        <img src="${dataUrl}" style="border:8px solid #fff;border-radius:12px"/>
+        <p style="color:#888;font-size:13px">Se refresca cada 20s</p>
+        <script>setTimeout(()=>location.reload(),20000)</script>
+      </body></html>`);
       return;
     }
 

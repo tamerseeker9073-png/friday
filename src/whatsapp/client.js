@@ -16,6 +16,7 @@ let sock = null;
 let isConnected = false;
 let onMessageHandler = null;
 let reconectando = false;
+let ultimoQR = null; // último QR string, para el endpoint web /qr
 
 async function conectar(onMessage) {
   if (onMessage) onMessageHandler = onMessage;
@@ -48,7 +49,8 @@ async function conectar(onMessage) {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        console.log('\n[FRIDAY] Escaneá este QR con WhatsApp:');
+        ultimoQR = qr; // guardar para el endpoint web /qr
+        console.log('\n[FRIDAY] Escaneá el QR: abrí /qr en el navegador (o el QR de abajo):');
         qrcode.generate(qr, { small: true });
       }
 
@@ -59,10 +61,13 @@ async function conectar(onMessage) {
         console.log(`[WhatsApp] Conexión cerrada (código ${codigo})`);
 
         if (codigo === DisconnectReason.loggedOut) {
-          // NO borrar la sesión automáticamente — solo reconectar
-          // Baileys mostrará QR si la sesión realmente es inválida
-          console.log('[WhatsApp] Código 401 recibido. Reconectando sin borrar sesión...');
-          setTimeout(() => conectar(onMessageHandler), 5000);
+          // 401 = sesión inválida/deslogueada. Reconectar SIN borrar loopea para
+          // siempre con credenciales muertas. Hay que limpiar la sesión para que
+          // Baileys genere un QR nuevo y se pueda re-vincular.
+          console.log('[WhatsApp] Código 401 (logout). Limpiando sesión y regenerando QR...');
+          limpiarSession();
+          ultimoQR = null;
+          setTimeout(() => conectar(onMessageHandler), 3000);
         } else if (codigo === DisconnectReason.restartRequired) {
           console.log('[WhatsApp] Reinicio requerido. Reconectando...');
           setTimeout(() => conectar(onMessageHandler), 2000);
@@ -77,6 +82,7 @@ async function conectar(onMessage) {
       if (connection === 'open') {
         isConnected = true;
         reconectando = false;
+        ultimoQR = null; // ya conectado, el QR no sirve más
         console.log('[FRIDAY] ✅ WhatsApp conectado');
       }
     });
@@ -127,6 +133,10 @@ function estaConectado() {
   return isConnected;
 }
 
+function getQR() {
+  return ultimoQR;
+}
+
 async function cierreGraceful() {
   console.log('[WhatsApp] Cerrando conexión gracefully...');
   isConnected = false;
@@ -140,4 +150,4 @@ async function cierreGraceful() {
   console.log('[WhatsApp] Conexión cerrada correctamente');
 }
 
-module.exports = { conectar, getSock, estaConectado, cierreGraceful };
+module.exports = { conectar, getSock, estaConectado, getQR, cierreGraceful };
