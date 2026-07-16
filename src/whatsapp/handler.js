@@ -57,6 +57,30 @@ async function manejarMensaje(msg) {
       return;
     }
 
+    // ── Skills read-only: auditoría y capacidad (admin/supervisor) ────────
+    if (perfil.nivel === 'admin' || perfil.nivel === 'supervisor') {
+      if (/\b(audit[aá]|auditar|auditor[ií]a|hay algo (raro|trabado|mal)|revis[aá] el tablero|chequ[eé]a el tablero)\b/i.test(texto)) {
+        try {
+          const { auditarTablero } = require('../brain/skills');
+          const { total, hallazgos } = await auditarTablero();
+          if (!hallazgos.length) enviarANumero(numero, `Auditoría OK ✅ — ${total} tareas activas, nada raro.`);
+          else enviarANumero(numero, `🔎 Auditoría del tablero (${total} activas):\n\n${hallazgos.join('\n')}\n\nDecime si querés que arregle alguna.`);
+        } catch (e) { console.error('[Skill audit]', e.message); enviarANumero(numero, 'No pude auditar el tablero ahora.'); }
+        return;
+      }
+      if (/\b(qui[eé]n est[aá] m[aá]s cargad|capacidad|carga del equipo|qui[eé]n puede tomar|qui[eé]n tiene menos)\b/i.test(texto)) {
+        try {
+          const { capacidadEquipo } = require('../brain/skills');
+          const { orden, atr, sinAsignar, total } = await capacidadEquipo();
+          let m = `👥 Carga del equipo (${total} tareas activas):\n\n`;
+          m += orden.map(([n, c]) => `• ${n}: ${c}${atr[n] ? ` (${atr[n]} atrasadas)` : ''}`).join('\n');
+          if (sinAsignar) m += `\n\n${sinAsignar} sin asignar.`;
+          enviarANumero(numero, m);
+        } catch (e) { console.error('[Skill capacidad]', e.message); enviarANumero(numero, 'No pude calcular la carga ahora.'); }
+        return;
+      }
+    }
+
     // ── FASE 4: Manejo de confirmación pendiente ──────────────────────────
     const pendiente = getPendiente(numero);
 

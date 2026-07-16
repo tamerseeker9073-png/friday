@@ -41,6 +41,7 @@ async function conectar(onMessage) {
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
       retryRequestDelayMs: 2000,
+      qrTimeout: 180000,                // QR válido 3 min por ciclo (menos parpadeo)
     });
 
     sock.ev.on('creds.update', saveCreds);
