@@ -105,12 +105,19 @@ Tono: evaluativo, profesional pero cercano. Incluí predicciones para la próxim
       console.error('[Biweekly] Error generando conclusión:', err.message);
     }
 
-    const { jidDeNumero } = require('../whatsapp/sender');
-    const { getSock } = require('../whatsapp/client');
-    const sock = getSock();
-    if (sock) {
-      await sock.sendMessage(grupoId, { text: partes.join('\n') });
-      console.log('[Biweekly] Reporte quincenal enviado al grupo');
+    // Envío al grupo según proveedor (Whapi soporta grupos; Baileys directo)
+    const texto = partes.join('\n');
+    if ((process.env.WHATSAPP_PROVIDER || 'baileys').toLowerCase() === 'whapi') {
+      const { enviarTexto } = require('../whatsapp/whapi');
+      await enviarTexto(grupoId, texto);
+      console.log('[Biweekly] Reporte quincenal enviado al grupo (Whapi)');
+    } else {
+      const { getSock } = require('../whatsapp/client');
+      const sock = getSock();
+      if (sock) {
+        await sock.sendMessage(grupoId, { text: texto });
+        console.log('[Biweekly] Reporte quincenal enviado al grupo (Baileys)');
+      }
     }
 
   } catch (err) {

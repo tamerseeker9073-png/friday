@@ -23,10 +23,13 @@ function iniciarHealthcheck() {
 
   const server = http.createServer(async (req, res) => {
     if (req.url === '/health') {
+      const whapi = (process.env.WHATSAPP_PROVIDER || 'baileys').toLowerCase() === 'whapi';
+      const ok = whapi ? true : estaConectado(); // Whapi es REST, el proceso vivo = ok
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        status: estaConectado() ? 'ok' : 'reconnecting',
-        whatsapp: estaConectado(),
+        status: ok ? 'ok' : 'reconnecting',
+        proveedor: whapi ? 'whapi' : 'baileys',
+        whatsapp: ok,
         timestamp: new Date().toISOString(),
       }));
       return;
@@ -62,6 +65,31 @@ function iniciarHealthcheck() {
         <p style="color:#666;font-size:12px;margin-top:16px">Se refresca cada 15s</p>
         <script>setTimeout(()=>location.reload(),15000)</script>
       </body></html>`);
+      return;
+    }
+
+    // Webhook Whapi.cloud — POST /whapi (mensajes entrantes)
+    if (req.method === 'POST' && req.url === '/whapi') {
+      const body = await leerBody(req);
+      try {
+        const { parsearWebhookWhapi } = require('./whatsapp/whapi');
+        const { manejarMensaje } = require('./whatsapp/handler');
+        for (const m of parsearWebhookWhapi(body)) {
+          if (m.chatId && m.chatId.includes('@g.us')) continue; // ignorar grupos (igual que Baileys)
+          if (!m.from || !m.texto) continue;
+          console.log(`[Whapi] Mensaje de ${m.fromName || m.from}: "${m.texto.substring(0, 60)}"`);
+          // Adaptar al formato que espera manejarMensaje (estilo Baileys)
+          const fakeMsg = {
+            key: { remoteJid: `${String(m.from).replace(/\D/g, '')}@s.whatsapp.net`, fromMe: false },
+            message: { conversation: m.texto },
+          };
+          manejarMensaje(fakeMsg);
+        }
+      } catch (err) {
+        console.error('[Whapi] Error procesando webhook:', err.message);
+      }
+      res.writeHead(200);
+      res.end('OK');
       return;
     }
 

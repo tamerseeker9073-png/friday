@@ -58,12 +58,22 @@ async function main() {
     process.exit(1);
   }
 
-  // 3. Conectar WhatsApp
-  console.log('[Init] Conectando WhatsApp...');
-  await conectar(manejarMensaje);
-
-  // Esperar conexión antes de continuar
-  await esperarConexion();
+  // 3. Conectar WhatsApp según proveedor
+  const PROVIDER = (process.env.WHATSAPP_PROVIDER || 'baileys').toLowerCase();
+  if (PROVIDER === 'whapi') {
+    console.log('[Init] Proveedor WhatsApp: Whapi.cloud (API gestionada)');
+    try {
+      const { estadoChannel } = require('./whatsapp/whapi');
+      const st = await estadoChannel();
+      console.log(`[Init] ✅ Whapi channel: ${st?.status?.text || JSON.stringify(st?.status || st)}`);
+    } catch (err) {
+      console.error('[Init] ⚠ No pude verificar el channel de Whapi:', err.message);
+    }
+  } else {
+    console.log('[Init] Conectando WhatsApp (Baileys)...');
+    await conectar(manejarMensaje);
+    await esperarConexion();
+  }
 
   // 4. Iniciar jobs cron
   iniciarJobs();
