@@ -16,7 +16,8 @@ let sock = null;
 let isConnected = false;
 let onMessageHandler = null;
 let reconectando = false;
-let ultimoQR = null; // último QR string, para el endpoint web /qr
+let ultimoQR = null;          // último QR string, para el endpoint web /qr
+let ultimoPairingCode = null; // código de vinculación por número (más confiable)
 
 async function conectar(onMessage) {
   if (onMessage) onMessageHandler = onMessage;
@@ -45,6 +46,24 @@ async function conectar(onMessage) {
     });
 
     sock.ev.on('creds.update', saveCreds);
+
+    // ── Código de vinculación por número (más confiable que el QR) ──
+    // Se pide una sola vez si la sesión no está registrada. El usuario lo ingresa
+    // en WhatsApp → Dispositivos vinculados → Vincular con número de teléfono.
+    const numeroFriday = (process.env.FRIDAY_NUMBER || '').replace(/\D/g, '');
+    if (numeroFriday && process.env.WHATSAPP_PAIRING !== 'off' && !sock.authState.creds.registered) {
+      setTimeout(async () => {
+        try {
+          if (sock.authState.creds.registered) return;
+          const code = await sock.requestPairingCode(numeroFriday);
+          ultimoPairingCode = code;
+          console.log(`[FRIDAY] 🔑 Código de vinculación: ${code}`);
+          console.log('[FRIDAY]    WhatsApp → Dispositivos vinculados → Vincular con número de teléfono');
+        } catch (err) {
+          console.error('[FRIDAY] Error pidiendo código de vinculación:', err.message);
+        }
+      }, 3000);
+    }
 
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
@@ -83,7 +102,8 @@ async function conectar(onMessage) {
       if (connection === 'open') {
         isConnected = true;
         reconectando = false;
-        ultimoQR = null; // ya conectado, el QR no sirve más
+        ultimoQR = null;
+        ultimoPairingCode = null; // ya conectado
         console.log('[FRIDAY] ✅ WhatsApp conectado');
       }
     });
@@ -138,6 +158,10 @@ function getQR() {
   return ultimoQR;
 }
 
+function getPairingCode() {
+  return ultimoPairingCode;
+}
+
 async function cierreGraceful() {
   console.log('[WhatsApp] Cerrando conexión gracefully...');
   isConnected = false;
@@ -151,4 +175,4 @@ async function cierreGraceful() {
   console.log('[WhatsApp] Conexión cerrada correctamente');
 }
 
-module.exports = { conectar, getSock, estaConectado, getQR, cierreGraceful };
+module.exports = { conectar, getSock, estaConectado, getQR, getPairingCode, cierreGraceful };

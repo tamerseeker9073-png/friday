@@ -1,6 +1,6 @@
 const http = require('http');
 const QRCode = require('qrcode');
-const { estaConectado, getQR } = require('./whatsapp/client');
+const { estaConectado, getQR, getPairingCode } = require('./whatsapp/client');
 
 let _enviarANumero = null;
 let _onMessageMeta = null;
@@ -39,20 +39,28 @@ function iniciarHealthcheck() {
         res.end('<html><body style="font-family:sans-serif;text-align:center;padding:40px"><h2>✅ FRIDAY ya está conectado a WhatsApp</h2></body></html>');
         return;
       }
+      const codigo = getPairingCode();
       const qr = getQR();
-      if (!qr) {
+      if (!codigo && !qr) {
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#fff"><h2>⏳ Generando QR... refrescá en 5 segundos</h2><script>setTimeout(()=>location.reload(),5000)</script></body></html>');
+        res.end('<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#fff"><h2>⏳ Generando código... refrescá en 5 segundos</h2><script>setTimeout(()=>location.reload(),5000)</script></body></html>');
         return;
       }
-      const dataUrl = await QRCode.toDataURL(qr, { width: 380 });
+      const codigoFmt = codigo ? codigo.match(/.{1,4}/g).join(' ') : null;
+      const imgQR = qr ? `<img src="${await QRCode.toDataURL(qr, { width: 300 })}" style="border:8px solid #fff;border-radius:12px"/>` : '';
       res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(`<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#111;color:#fff">
+      res.end(`<html><body style="font-family:sans-serif;text-align:center;padding:36px;background:#111;color:#fff">
         <h2>FRIDAY — Vincular WhatsApp</h2>
-        <p>WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
-        <img src="${dataUrl}" style="border:8px solid #fff;border-radius:12px"/>
-        <p style="color:#888;font-size:13px">Se refresca cada 20s</p>
-        <script>setTimeout(()=>location.reload(),20000)</script>
+        ${codigo ? `
+        <div style="margin:24px auto;max-width:420px;background:#1c1c1c;border:1px solid #333;border-radius:14px;padding:24px">
+          <p style="color:#aaa;margin:0 0 8px">Método recomendado — con número de teléfono:</p>
+          <p style="margin:6px 0"><b>WhatsApp → Dispositivos vinculados → Vincular un dispositivo → "Vincular con número de teléfono"</b></p>
+          <div style="font-size:34px;font-weight:800;letter-spacing:6px;margin:16px 0;color:#22c55e">${codigoFmt}</div>
+          <p style="color:#888;font-size:12px;margin:0">Ingresá este código en el teléfono de FRIDAY</p>
+        </div>` : ''}
+        ${imgQR ? `<p style="color:#888;margin-top:20px">o escaneá el QR (respaldo):</p>${imgQR}` : ''}
+        <p style="color:#666;font-size:12px;margin-top:16px">Se refresca cada 15s</p>
+        <script>setTimeout(()=>location.reload(),15000)</script>
       </body></html>`);
       return;
     }
