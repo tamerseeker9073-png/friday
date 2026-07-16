@@ -136,9 +136,14 @@ function limpiarSession() {
   try {
     const archivos = fs.readdirSync(SESSION_DIR);
     for (const archivo of archivos) {
-      if (archivo !== 'state.json') { // Preservar el estado de FRIDAY
-        fs.unlinkSync(path.join(SESSION_DIR, archivo));
-      }
+      // Preservar state.json (estado propio de FRIDAY) y saltar directorios
+      // como lost+found (que crea el volumen de Railway).
+      if (archivo === 'state.json' || archivo === 'lost+found') continue;
+      const full = path.join(SESSION_DIR, archivo);
+      try {
+        if (fs.statSync(full).isDirectory()) fs.rmSync(full, { recursive: true, force: true });
+        else fs.unlinkSync(full);
+      } catch (e) { /* ignorar entradas que no se pueden borrar */ }
     }
     console.log('[WhatsApp] Sesión limpiada');
   } catch (err) {
