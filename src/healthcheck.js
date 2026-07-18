@@ -75,7 +75,7 @@ function iniciarHealthcheck() {
         const { parsearWebhookWhapi } = require('./whatsapp/whapi');
         const { manejarMensaje } = require('./whatsapp/handler');
         for (const m of parsearWebhookWhapi(body)) {
-          if (m.chatId && m.chatId.includes('@g.us')) { console.log(`[Whapi] GRUPO ID: ${m.chatId} — ${m.fromName}: "${m.texto.substring(0,40)}"`); continue; }
+          if (m.chatId && m.chatId.includes('@g.us')) continue;
           if (!m.from || !m.texto) continue;
           console.log(`[Whapi] Mensaje de ${m.fromName || m.from}: "${m.texto.substring(0, 60)}"`);
           // Adaptar al formato que espera manejarMensaje (estilo Baileys)
