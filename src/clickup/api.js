@@ -79,6 +79,34 @@ async function getCustomFields(listaId) {
   return request('get', `/list/${listaId}/field`);
 }
 
+// ── Operaciones de escritura ──────────────────────────────────────────────────
+
+async function crearTarea(listaId, { nombre, asignados = [], dueDate = null, status = null }) {
+  const body = { name: nombre };
+  if (asignados.length) body.assignees = asignados.map(Number);
+  if (dueDate) body.due_date = dueDate;
+  if (status) body.status = status;
+  return request('post', `/list/${listaId}/task`, {}, body);
+}
+
+async function cambiarStatus(taskId, status) {
+  return request('put', `/task/${taskId}`, {}, { status });
+}
+
+async function reasignarTarea(taskId, addIds = [], remIds = []) {
+  return request('put', `/task/${taskId}`, {}, {
+    assignees: { add: addIds.map(Number), rem: remIds.map(Number) },
+  });
+}
+
+async function getTarea(taskId) {
+  return request('get', `/task/${taskId}`);
+}
+
+async function borrarTarea(taskId) {
+  return request('delete', `/task/${taskId}`);
+}
+
 module.exports = {
   getEspacios,
   getListas,
@@ -86,4 +114,9 @@ module.exports = {
   getTareasPorAsignado,
   marcarCompletada,
   getCustomFields,
+  crearTarea,
+  cambiarStatus,
+  reasignarTarea,
+  getTarea,
+  borrarTarea,
 };

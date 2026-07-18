@@ -9,6 +9,12 @@ const { getDatosJarvis } = require('../sheets/jarvis');
 const { enviarANumero } = require('./sender');
 const { construirReporteDiario } = require('../reports/daily');
 const { getColaboradores } = require('../sheets/colaboradores');
+const {
+  getPendingOp, clearPendingOp,
+  manejarClickupConversacional, ejecutarOpPendiente,
+  manejarBatchPiezas, ejecutarBatchPendiente,
+  ejecutarCierreMensual,
+} = require('../brain/clickup-skills');
 
 const NUMEROS_AUTORIZADOS = () =>
   (process.env.WHATSAPP_AUTHORIZED_NUMBERS || '').split(',').map(n => n.trim());
@@ -81,7 +87,53 @@ async function manejarMensaje(msg) {
       }
     }
 
+    // ── Skills write: ClickUp conversacional y batch (solo admin) ────────
+    if (perfil.nivel === 'admin') {
+      // Skill #5 — Cierre mensual
+      if (/\b(cierre\s+del?\s+mes|cerr[aá]\s+(?:el\s+mes|(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)))\b/i.test(texto)) {
+        try {
+          await ejecutarCierreMensual(numero);
+        } catch (e) { console.error('[Skill cierre]', e.message); enviarANumero(numero, 'No pude generar el cierre mensual ahora.'); }
+        return;
+      }
+
+      // Skill #2 — Batch (detect BEFORE Skill #1 to catch multi-type messages)
+      try {
+        const batchHandled = await manejarBatchPiezas(numero, texto);
+        if (batchHandled) return;
+      } catch (e) { console.error('[Skill batch]', e.message); }
+
+      // Skill #1 — ClickUp conversacional (single op: crear/mover/reasignar)
+      try {
+        const clickupHandled = await manejarClickupConversacional(numero, texto);
+        if (clickupHandled) return;
+      } catch (e) { console.error('[Skill clickup]', e.message); }
+    }
+
     // ── FASE 4: Manejo de confirmación pendiente ──────────────────────────
+    // Check ClickUp op confirmations first (admin only)
+    if (perfil.nivel === 'admin') {
+      const opPendiente = getPendingOp(numero);
+      if (opPendiente) {
+        if (esConfirmacion(texto)) {
+          // Dispatch to the right executor based on accion
+          if (opPendiente.accion === 'batch_crear') {
+            await ejecutarBatchPendiente(numero);
+          } else {
+            await ejecutarOpPendiente(numero);
+          }
+          return;
+        }
+        if (esNegacion(texto)) {
+          clearPendingOp(numero);
+          enviarANumero(numero, 'Ok, cancelado.');
+          return;
+        }
+        // Message is not yes/no — clear op and continue to normal flow
+        clearPendingOp(numero);
+      }
+    }
+
     const pendiente = getPendiente(numero);
 
     if (pendiente) {

@@ -1,5 +1,7 @@
 // Estado de confirmaciones pendientes por número
 // { numero → { taskId, taskName, timestamp } }
+// NOTE: ClickUp write operations (create/move/reassign) use a separate
+// pendingOps Map in src/brain/clickup-skills.js (tipo: 'clickup_op').
 const pendientes = new Map();
 const EXPIRACION_MS = 5 * 60 * 1000; // 5 minutos para confirmar
 

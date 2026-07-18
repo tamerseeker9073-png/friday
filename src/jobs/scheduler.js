@@ -10,6 +10,7 @@ const { enviarANumero } = require('../whatsapp/sender');
 const { reporteYaEnviado, marcarReporteEnviado, limpiarAlertasViejas, alertaYaEnviada, marcarAlertaEnviada } = require('../state/manager');
 const { getClientesBajoAprovechamiento } = require('../sheets/filmmaking');
 const { generarInformeJarvis, esUltimoDiaDelMes } = require('../reports/jarvis-monthly');
+const { ejecutarCierreMensual } = require('../brain/clickup-skills');
 
 const TZ = 'America/Argentina/Buenos_Aires';
 
@@ -111,6 +112,23 @@ function iniciarJobs() {
   // Limpieza de estado viejo — domingos a medianoche
   cron.schedule('0 0 * * 0', limpiarAlertasViejas, { timezone: TZ });
 
+  // Cierre mensual automático — días 30 y 31 a las 9AM.
+  // Skill #5: genera y envía el reporte de piezas terminadas del mes al admin y al grupo.
+  // Requiere PATO_NUMBER env var para saber a quién enviar el reporte.
+  cron.schedule('0 9 30,31 * *', async () => {
+    const adminNumero = process.env.PATO_NUMBER?.replace(/\D/g, '');
+    if (!adminNumero) {
+      console.warn('[Scheduler] Cierre mensual: falta PATO_NUMBER, no se puede enviar el reporte.');
+      return;
+    }
+    console.log('[Scheduler] Ejecutando cierre mensual automático...');
+    try {
+      await ejecutarCierreMensual(adminNumero);
+    } catch (err) {
+      console.error('[Scheduler] Error en cierre mensual:', err.message);
+    }
+  }, { timezone: TZ });
+
   // Informe mensual a JARVIS — corre días 28-31 a las 9AM y verifica si es el último día del mes.
   // DESACTIVADO por defecto. Activar seteando JARVIS_MONTHLY_ENABLED=true en Railway
   // una vez que los tags de ClickUp (simple, complejo, flyer-simple, flyer-complejo) estén normalizados.
@@ -126,7 +144,7 @@ function iniciarJobs() {
   // Alertas en tiempo real — polling cada 3 minutos
   iniciarPolling();
 
-  console.log('[Scheduler] Jobs iniciados: diario 9AM, escalaciones 10AM, filmmaking 11:30 L-V, semanal viernes 17hs, quincenal días 1 y 16');
+  console.log('[Scheduler] Jobs iniciados: diario 9AM, escalaciones 10AM, filmmaking 11:30 L-V, semanal viernes 17hs, quincenal días 1 y 16, cierre mensual días 30-31 9AM');
 }
 
 // numeroTest: número al que llega el mensaje
