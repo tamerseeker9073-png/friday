@@ -103,8 +103,8 @@ function iniciarJobs() {
   // Filmmaking aprovechamiento — 11:30 AM todos los días hábiles (Fase 6)
   cron.schedule('30 11 * * 1-5', verificarFilmmaking, { timezone: TZ });
 
-  // Reporte semanal — viernes 17:00
-  cron.schedule('0 17 * * 5', enviarReportesSemanales, { timezone: TZ });
+  // Reporte semanal — viernes 9:00 AM
+  cron.schedule('0 9 * * 5', enviarReportesSemanales, { timezone: TZ });
 
   // Reporte quincenal — día 1 y 16 de cada mes a las 10AM
   cron.schedule('0 10 1,16 * *', enviarReporteQuincenal, { timezone: TZ });

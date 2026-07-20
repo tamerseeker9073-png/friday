@@ -32,9 +32,11 @@ function calcularDemora(fechaLimite) {
 }
 
 function emojiDemora(dias) {
-  if (dias <= 3) return '😊';
-  if (dias <= 7) return '😐';
-  return '😡';
+  if (dias === null) return '';
+  if (dias < 0) return '😊';  // upcoming
+  if (dias === 0) return '🤔'; // due today
+  if (dias <= 7) return '😐';  // recently overdue
+  return '😡';                  // very overdue
 }
 
 function estaAtrasada(fechaLimite) {

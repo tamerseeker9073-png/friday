@@ -28,7 +28,9 @@ function formatearTareaAtrasada(tarea) {
 function formatearTareaSimple(tarea) {
   const cliente = tarea.cliente || tarea.lista || 'sin cliente';
   const fecha = tarea.fechaLimite ? formatearFecha(tarea.fechaLimite) : 'sin fecha';
-  return `• Tarea: *${tarea.nombre}*\n   Cliente: ${cliente} · Vence: ${fecha}`;
+  const demora = calcularDemora(tarea.fechaLimite);
+  const emoji = emojiDemora(demora);
+  return `${emoji} Tarea: *${tarea.nombre}*\n   Cliente: ${cliente} · Vence: ${fecha}`;
 }
 
 function separador() {
