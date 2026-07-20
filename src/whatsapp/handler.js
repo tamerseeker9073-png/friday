@@ -140,7 +140,14 @@ async function manejarMensaje(msg) {
       if (esConfirmacion(texto)) {
         try {
           await completarTarea(pendiente.taskId);
-          enviarANumero(numero, `Ya la marqué como completada por vos ✅\n\n*${pendiente.taskName}*`);
+          enviarANumero(numero, `✅ Pasé *${pendiente.taskName}* a Revisión. Espera la aprobación.`);
+          // Notify all admins
+          const admins = await getColaboradores();
+          for (const [adminNum, adminData] of admins) {
+            if (adminData.nivel === 'admin' && adminNum !== numero) {
+              enviarANumero(adminNum, `🔔 *Nueva pieza para revisar*\n\nTarea: *${pendiente.taskName}*\nEntregó: ${perfil.nombre || numero}\n\nEstá lista para revisión en ClickUp.`);
+            }
+          }
           console.log(`[Handler] Tarea completada en ClickUp: ${pendiente.taskName}`);
         } catch (err) {
           console.error('[Handler] Error marcando tarea:', err.message);
@@ -190,7 +197,7 @@ async function manejarMensaje(msg) {
       if (tareasActivas.length === 1) {
         // Una sola tarea activa → pedir confirmación directamente
         setPendiente(numero, tareasActivas[0].id, tareasActivas[0].nombre);
-        enviarANumero(numero, `Confirmas que completaste la tarea *${tareasActivas[0].nombre}*? (sí / no)`);
+        enviarANumero(numero, `¿Terminaste *${tareasActivas[0].nombre}*? La voy a pasar a Revisión para que la aprueben. (sí / no)`);
         return;
       }
       // Más de una o ninguna → Claude pregunta "Que cosa ya hiciste?"

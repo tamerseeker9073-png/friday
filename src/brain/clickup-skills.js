@@ -13,6 +13,17 @@ const { getColaboradores } = require('../sheets/colaboradores');
 const { enviarANumero } = require('../whatsapp/sender');
 const { escribirProduccionMensual } = require('../sheets/produccion');
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function getNumeroByClickupId(clickupId) {
+  const { getColaboradores } = require('../sheets/colaboradores');
+  const todos = await getColaboradores();
+  for (const [num, data] of todos) {
+    if (String(data.clickupId) === String(clickupId)) return num;
+  }
+  return null;
+}
+
 // ── Pending ClickUp operations store ─────────────────────────────────────────
 // Separate from confirmations.js (which owns task-completion flow).
 // { numero → { tipo: 'clickup_op', accion, payload, resumen, timestamp } }
@@ -210,6 +221,12 @@ async function ejecutarOpPendiente(numero) {
       }
       await reasignarTarea(taskId, [colaboradorId]);
       enviarANumero(numero, `✅ "${tareaNombre}" reasignada a ${colaboradorNombre}.`);
+      // Notify the reassigned collaborator
+      const assigneeNum = await getNumeroByClickupId(colaboradorId);
+      if (assigneeNum && assigneeNum !== numero) {
+        const msg = `📋 *FRIDAY te asignó tareas nuevas*\n\n• Tarea: *${tareaNombre}*\n\nRevisalas en ClickUp cuando puedas.`;
+        enviarANumero(assigneeNum, msg);
+      }
       return true;
     }
   } catch (err) {
@@ -360,11 +377,21 @@ async function ejecutarBatchPendiente(numero) {
 
   let creadas = 0;
   const errores = [];
+  // Track created tasks per assignee for consolidated notifications
+  // assigneeId → [{ nombre, clienteLabel }]
+  const tareasPorAsignado = new Map();
 
   for (const { listaId, nombre } of tareasList) {
     try {
-      await crearTarea(listaId, { nombre });
+      const tarea = await crearTarea(listaId, { nombre });
       creadas++;
+      if (tarea.assignees && tarea.assignees.length) {
+        for (const assignee of tarea.assignees) {
+          const id = String(assignee.id);
+          if (!tareasPorAsignado.has(id)) tareasPorAsignado.set(id, []);
+          tareasPorAsignado.get(id).push({ nombre: tarea.name, clienteLabel });
+        }
+      }
     } catch (err) {
       console.error('[ClickupSkills] Error creando tarea batch:', err.message);
       errores.push(nombre);
@@ -376,6 +403,16 @@ async function ejecutarBatchPendiente(numero) {
     msg += `\n\n⚠️ No se pudieron crear: ${errores.join(', ')}.`;
   }
   enviarANumero(numero, msg);
+
+  // Send consolidated assignment notifications
+  for (const [assigneeId, tareas] of tareasPorAsignado) {
+    const assigneeNum = await getNumeroByClickupId(assigneeId);
+    if (assigneeNum && assigneeNum !== numero) {
+      const lineas = tareas.map(t => `• Tarea: *${t.nombre}* — ${t.clienteLabel}`).join('\n');
+      enviarANumero(assigneeNum, `📋 *FRIDAY te asignó tareas nuevas*\n\n${lineas}\n\nRevisalas en ClickUp cuando puedas.`);
+    }
+  }
+
   return true;
 }
 

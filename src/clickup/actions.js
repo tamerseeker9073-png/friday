@@ -1,8 +1,8 @@
-const { marcarCompletada } = require('./api');
+const { cambiarStatus } = require('./api');
 
 async function completarTarea(taskId) {
-  await marcarCompletada(taskId);
-  return true;
+  await cambiarStatus(taskId, 'revisión');
+  return taskId;
 }
 
 module.exports = { completarTarea };
