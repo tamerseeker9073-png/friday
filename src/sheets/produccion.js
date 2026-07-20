@@ -8,15 +8,34 @@ const { getSheetsClient } = require('./client');
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID || '1DLppOhHSg0iNHad9ddKF64EIcB7OcDvvionhcZJXTEw';
 const SHEET_NAME = 'PRODUCCION_MENSUAL';
 
+const PRECIOS = {
+  videoComplejo:  20000,
+  videoSimple:    12000,
+  flyerComplejo:   3500,
+  flyerSimple:     2000,
+  jornada:            0, // a definir
+};
+
 const HEADERS = [
   'Mes',
   'Cliente',
-  'Videos Complejos',
-  'Videos Simples',
-  'Flyers Complejos',
-  'Flyers Simples',
-  'Jornadas Producción',
+  'Videos Complejos (cant)',
+  'Precio VC',
+  'Subtotal VC',
+  'Videos Simples (cant)',
+  'Precio VS',
+  'Subtotal VS',
+  'Flyers Complejos (cant)',
+  'Precio FC',
+  'Subtotal FC',
+  'Flyers Simples (cant)',
+  'Precio FS',
+  'Subtotal FS',
+  'Jornadas (cant)',
+  'Precio Jornada',
+  'Subtotal Jornadas',
   'App Level USD',
+  'TOTAL ARS',
 ];
 
 // Clients with a paid app subscription
@@ -105,15 +124,27 @@ async function escribirProduccionMensual(mes, filasPorCliente) {
 
   for (const fila of filasPorCliente) {
     const appLevel = resolveAppLevel(fila.cliente);
+    const vc = fila.videosComplejos  || 0;
+    const vs = fila.videosSimples    || 0;
+    const fc = fila.flyersComplejos  || 0;
+    const fs = fila.flyersSimples    || 0;
+    const jo = fila.jornadasProduccion || 0;
+    const stVC = vc * PRECIOS.videoComplejo;
+    const stVS = vs * PRECIOS.videoSimple;
+    const stFC = fc * PRECIOS.flyerComplejo;
+    const stFS = fs * PRECIOS.flyerSimple;
+    const stJO = jo * PRECIOS.jornada;
+    const total = stVC + stVS + stFC + stFS + stJO;
     rows.push([
       mes,
       fila.cliente,
-      fila.videosComplejos,
-      fila.videosSimples,
-      fila.flyersComplejos,
-      fila.flyersSimples,
-      fila.jornadasProduccion,
+      vc, PRECIOS.videoComplejo,  stVC,
+      vs, PRECIOS.videoSimple,    stVS,
+      fc, PRECIOS.flyerComplejo,  stFC,
+      fs, PRECIOS.flyerSimple,    stFS,
+      jo, PRECIOS.jornada,        stJO,
       appLevel,
+      total,
     ]);
   }
 
