@@ -11,6 +11,7 @@ const { resolverCliente, resolverTipoKey, getListaId, nombresClientes, CLIENTES_
 const { getListas } = require('../clickup/api');
 const { getColaboradores } = require('../sheets/colaboradores');
 const { enviarANumero } = require('../whatsapp/sender');
+const { escribirProduccionMensual } = require('../sheets/produccion');
 
 // ── Pending ClickUp operations store ─────────────────────────────────────────
 // Separate from confirmations.js (which owns task-completion flow).
@@ -460,10 +461,30 @@ async function ejecutarCierreMensual(adminNumero, fecha) {
     return;
   }
 
+  // Write to Google Sheets — failures don't block the WhatsApp report
+  const mesNombre = `${capitalizar(MESES_ES[mes])} ${anio}`;
+  const filasPorCliente = clientesOrdenados.map(cliente => ({
+    cliente,
+    videosComplejos: 0,
+    videosSimples: counts[cliente].reels,
+    flyersComplejos: 0,
+    flyersSimples: counts[cliente].flyers,
+    jornadasProduccion: 0,
+  }));
+
+  let sheetOk = false;
+  try {
+    await escribirProduccionMensual(mesNombre, filasPorCliente);
+    sheetOk = true;
+  } catch (err) {
+    console.error('[CierreMensual] Error escribiendo en Google Sheets:', err.message);
+  }
+
   const reporte =
     `📊 Cierre ${capitalizar(MESES_ES[mes])} ${anio}: piezas terminadas\n\n` +
     lineas.join('\n') +
-    `\n\nTotal: ${total} pieza${total !== 1 ? 's' : ''}\n(Costos pendientes de definir)`;
+    `\n\nTotal: ${total} pieza${total !== 1 ? 's' : ''}\n(Costos pendientes de definir)` +
+    (sheetOk ? '\n📊 Datos guardados en hoja PRODUCCION_MENSUAL del sheet.' : '');
 
   // Send to admin
   enviarANumero(adminNumero, reporte);

@@ -23,7 +23,7 @@ async function getSheetsClient() {
   const credentials = getCredentials();
   const auth = new google.auth.GoogleAuth({
     credentials,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
 
   sheetsClient = google.sheets({ version: 'v4', auth });
