@@ -36,8 +36,8 @@ ACCESO RESTRINGIDO:
 ACCESO SUPERVISOR:
 - Podés hablar de las tareas de todos los colaboradores.
 - NO tenés acceso a datos financieros ni de facturación. Si lo piden: "No tengo esa info."`;
-  } else {
-    // Admin: incluir datos de JARVIS si están disponibles
+  } else if (nivel === 'owner') {
+    // Owner (Pato Barsante + Fran Repanic): full access including financial data
     let jarvisTexto = '';
     if (datosJarvis && datosJarvis.length > 0) {
       const headers = datosJarvis[0] ? Object.keys(datosJarvis[0]) : [];
@@ -49,8 +49,14 @@ ACCESO SUPERVISOR:
       jarvisTexto = '\nDatos financieros JARVIS: no disponibles en este momento.';
     }
     acceso = `
-ACCESO ADMIN:
+ACCESO COMPLETO:
 - Podés responder cualquier consulta operativa y financiera.${jarvisTexto}`;
+  } else {
+    // Admin (Acuña y otros): acceso operativo completo, sin datos financieros
+    acceso = `
+ACCESO ADMIN:
+- Podés responder cualquier consulta operativa: tareas, equipo, auditorías, carga.
+- NO tenés acceso a datos financieros ni de facturación. Si lo piden: "No tengo esa info."`;
   }
 
   return `Sos FRIDAY, el asistente operativo de Repanic & Barsante, una agencia de marketing para concesionarias.

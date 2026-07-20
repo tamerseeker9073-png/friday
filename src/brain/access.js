@@ -1,4 +1,5 @@
 const NIVELES = {
+  owner: 5,       // Financial data access — Pato Barsante + Fran Repanic only
   admin: 4,
   supervisor: 3,
   colaborador: 2,
@@ -6,11 +7,11 @@ const NIVELES = {
 };
 
 const RECURSOS = {
-  datos_financieros: ['admin'],
-  todos_colaboradores: ['admin', 'supervisor'],
-  tareas_propias: ['admin', 'supervisor', 'colaborador'],
-  info_clientes: ['admin', 'supervisor', 'colaborador'],
-  prompts: ['admin', 'supervisor', 'colaborador'],
+  datos_financieros: ['owner'],
+  todos_colaboradores: ['owner', 'admin', 'supervisor'],
+  tareas_propias: ['owner', 'admin', 'supervisor', 'colaborador'],
+  info_clientes: ['owner', 'admin', 'supervisor', 'colaborador'],
+  prompts: ['owner', 'admin', 'supervisor', 'colaborador'],
 };
 
 function getNivel(colaborador) {
@@ -25,11 +26,11 @@ function puedeAcceder(nivel, recurso) {
 }
 
 function esAdmin(nivel) {
-  return nivel === 'admin';
+  return nivel === 'admin' || nivel === 'owner';
 }
 
 function esSupervisor(nivel) {
-  return nivel === 'supervisor' || nivel === 'admin';
+  return nivel === 'supervisor' || nivel === 'admin' || nivel === 'owner';
 }
 
 module.exports = { getNivel, puedeAcceder, esAdmin, esSupervisor };
