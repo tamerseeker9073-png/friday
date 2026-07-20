@@ -24,12 +24,26 @@ function iniciarHealthcheck() {
   const server = http.createServer(async (req, res) => {
     if (req.url === '/health') {
       const whapi = (process.env.WHATSAPP_PROVIDER || 'baileys').toLowerCase() === 'whapi';
-      const ok = whapi ? true : estaConectado(); // Whapi es REST, el proceso vivo = ok
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      let ok = whapi ? false : estaConectado();
+      let whapiStatus = null;
+      if (whapi) {
+        try {
+          const axios = require('axios');
+          const r = await axios.get('https://gate.whapi.cloud/health', {
+            headers: { Authorization: `Bearer ${process.env.WHAPI_TOKEN}` },
+            timeout: 8000,
+          });
+          whapiStatus = r.data?.status?.text || 'UNKNOWN';
+          ok = whapiStatus === 'AUTH'; // AUTH = conectado y autenticado
+        } catch { whapiStatus = 'ERROR'; }
+      }
+      const code = ok ? 200 : 503;
+      res.writeHead(code, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        status: ok ? 'ok' : 'reconnecting',
+        status: ok ? 'ok' : 'disconnected',
         proveedor: whapi ? 'whapi' : 'baileys',
         whatsapp: ok,
+        ...(whapiStatus && { whapi_status: whapiStatus }),
         timestamp: new Date().toISOString(),
       }));
       return;
