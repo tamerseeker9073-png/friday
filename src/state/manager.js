@@ -74,6 +74,16 @@ function marcarReporteEnviado(numero, tipo) {
   guardarEstado();
 }
 
+function resetearReportesHoy() {
+  const hoy = new Date().toISOString().split('T')[0];
+  for (const key of Object.keys(estado.ultimosReportes)) {
+    if (estado.ultimosReportes[key] === hoy) {
+      delete estado.ultimosReportes[key];
+    }
+  }
+  guardarEstado();
+}
+
 // Limpieza de alertas viejas (más de 30 días)
 function limpiarAlertasViejas() {
   const hace30Dias = new Date();
@@ -94,5 +104,6 @@ module.exports = {
   getContadorAlerta,
   reporteYaEnviado,
   marcarReporteEnviado,
+  resetearReportesHoy,
   limpiarAlertasViejas,
 };

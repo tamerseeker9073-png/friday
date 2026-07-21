@@ -79,48 +79,43 @@ async function manejarMensaje(msg) {
             const partes = [`🔎 *Auditoría del tablero* — ${total} tareas activas\n`];
 
             if (atrasadas.length) {
-              partes.push(`🔴 *Atrasadas (${atrasadas.length})*`);
+              partes.push(`😡 *Atrasadas (${atrasadas.length})*\n`);
               for (const t of atrasadas.slice(0, 10)) {
                 const dias = calcDem(t.fechaLimite);
                 const emoji = emojiDemora(dias);
                 const asig = t.asignados[0]?.nombre || 'sin asignar';
-                partes.push(`${emoji} ${t.nombre}\n   ${t.cliente || 'sin cliente'} · ${asig} · ${dias} día${dias !== 1 ? 's' : ''} de demora`);
+                partes.push(`${emoji} *${t.nombre}*\n${t.cliente || 'sin cliente'} · ${asig}\n${dias} día${dias !== 1 ? 's' : ''} de demora\n`);
               }
-              if (atrasadas.length > 10) partes.push(`   … y ${atrasadas.length - 10} más`);
-              partes.push('');
+              if (atrasadas.length > 10) partes.push(`… y ${atrasadas.length - 10} más\n`);
             }
 
             if (sinAsignar.length) {
-              partes.push(`📌 *Sin asignar (${sinAsignar.length})*`);
+              partes.push(`📌 *Sin asignar (${sinAsignar.length})*\n`);
               for (const t of sinAsignar.slice(0, 8)) {
-                partes.push(`• ${t.nombre}\n   ${t.cliente || 'sin cliente'}`);
+                partes.push(`• *${t.nombre}*\n${t.cliente || 'sin cliente'}\n`);
               }
-              partes.push('');
             }
 
             if (sinFecha.length) {
-              partes.push(`📅 *Sin fecha límite (${sinFecha.length})*`);
+              partes.push(`📅 *Sin fecha límite (${sinFecha.length})*\n`);
               for (const t of sinFecha.slice(0, 8)) {
                 const asig = t.asignados[0]?.nombre || 'sin asignar';
-                partes.push(`• ${t.nombre}\n   ${t.cliente || 'sin cliente'} · ${asig}`);
+                partes.push(`• *${t.nombre}*\n${t.cliente || 'sin cliente'} · ${asig}\n`);
               }
-              partes.push('');
             }
 
             if (duplicadas.length) {
-              partes.push(`♊ *Posibles duplicadas (${duplicadas.length})*`);
+              partes.push(`♊ *Posibles duplicadas (${duplicadas.length})*\n`);
               for (const t of duplicadas.slice(0, 5)) {
-                partes.push(`• ${t.nombre} — ${t.cliente || 'sin cliente'}`);
+                partes.push(`• *${t.nombre}*\n${t.cliente || 'sin cliente'}\n`);
               }
-              partes.push('');
             }
 
             if (sobrecargados.length) {
-              partes.push(`⚠ *Sobrecargados*`);
+              partes.push(`⚠ *Sobrecargados*\n`);
               for (const [nombre, cant] of sobrecargados) {
-                partes.push(`• ${nombre}: ${cant} tareas activas`);
+                partes.push(`• ${nombre}: ${cant} tareas activas\n`);
               }
-              partes.push('');
             }
 
             partes.push(`Decime si querés que arregle algo.`);
@@ -317,6 +312,21 @@ async function manejarComandoAdmin(numeroAdmin, comando, perfil) {
       }
     } else {
       enviarANumero(numeroAdmin, `${encontrado.nombre} no tiene tareas activas.`);
+    }
+    return;
+  }
+
+  // !reportes — fuerza el envío de reportes diarios a todos ahora
+  if (cmd === 'reportes') {
+    enviarANumero(numeroAdmin, '📤 Enviando reportes diarios a todos los colaboradores...');
+    const { enviarReportesDiarios } = require('../jobs/scheduler');
+    const { resetearReportesHoy } = require('../state/manager');
+    resetearReportesHoy();
+    try {
+      await enviarReportesDiarios();
+      enviarANumero(numeroAdmin, '✅ Reportes enviados.');
+    } catch (err) {
+      enviarANumero(numeroAdmin, `❌ Error enviando reportes: ${err.message}`);
     }
     return;
   }
