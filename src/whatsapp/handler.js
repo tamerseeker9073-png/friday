@@ -69,16 +69,62 @@ async function manejarMensaje(msg) {
       if (/\b(audit[aá]|auditar|auditor[ií]a|hay algo (raro|trabado|mal)|revis[aá] el tablero|chequ[eé]a el tablero)\b/i.test(texto)) {
         try {
           const { auditarTablero } = require('../brain/skills');
-          const { total, hallazgos } = await auditarTablero();
-          if (!hallazgos.length) {
+          const { formatearFecha } = require('../utils/dates');
+          const { emojiDemora, calcularDemora: calcDem } = require('../utils/dates');
+          const { total, atrasadas, sinAsignar, sinFecha, duplicadas, sobrecargados } = await auditarTablero();
+          const hayProblemas = atrasadas.length || sinAsignar.length || sinFecha.length || duplicadas.length || sobrecargados.length;
+          if (!hayProblemas) {
             enviarANumero(numero, `✅ Tablero OK — ${total} tareas activas, nada raro.`);
           } else {
-            let msg = `🔎 *Auditoría del tablero* — ${total} tareas activas\n`;
-            msg += '─────────────────────\n';
-            msg += hallazgos.join('\n');
-            msg += '\n─────────────────────\n';
-            msg += `Decime si querés que arregle algo.`;
-            enviarANumero(numero, msg);
+            const partes = [`🔎 *Auditoría del tablero* — ${total} tareas activas\n`];
+
+            if (atrasadas.length) {
+              partes.push(`🔴 *Atrasadas (${atrasadas.length})*`);
+              for (const t of atrasadas.slice(0, 10)) {
+                const dias = calcDem(t.fechaLimite);
+                const emoji = emojiDemora(dias);
+                const asig = t.asignados[0]?.nombre || 'sin asignar';
+                partes.push(`${emoji} ${t.nombre}\n   ${t.cliente || 'sin cliente'} · ${asig} · ${dias} día${dias !== 1 ? 's' : ''} de demora`);
+              }
+              if (atrasadas.length > 10) partes.push(`   … y ${atrasadas.length - 10} más`);
+              partes.push('');
+            }
+
+            if (sinAsignar.length) {
+              partes.push(`📌 *Sin asignar (${sinAsignar.length})*`);
+              for (const t of sinAsignar.slice(0, 8)) {
+                partes.push(`• ${t.nombre}\n   ${t.cliente || 'sin cliente'}`);
+              }
+              partes.push('');
+            }
+
+            if (sinFecha.length) {
+              partes.push(`📅 *Sin fecha límite (${sinFecha.length})*`);
+              for (const t of sinFecha.slice(0, 8)) {
+                const asig = t.asignados[0]?.nombre || 'sin asignar';
+                partes.push(`• ${t.nombre}\n   ${t.cliente || 'sin cliente'} · ${asig}`);
+              }
+              partes.push('');
+            }
+
+            if (duplicadas.length) {
+              partes.push(`♊ *Posibles duplicadas (${duplicadas.length})*`);
+              for (const t of duplicadas.slice(0, 5)) {
+                partes.push(`• ${t.nombre} — ${t.cliente || 'sin cliente'}`);
+              }
+              partes.push('');
+            }
+
+            if (sobrecargados.length) {
+              partes.push(`⚠ *Sobrecargados*`);
+              for (const [nombre, cant] of sobrecargados) {
+                partes.push(`• ${nombre}: ${cant} tareas activas`);
+              }
+              partes.push('');
+            }
+
+            partes.push(`Decime si querés que arregle algo.`);
+            enviarANumero(numero, partes.join('\n'));
           }
         } catch (e) { console.error('[Skill audit]', e.message); enviarANumero(numero, 'No pude auditar el tablero ahora.'); }
         return;
