@@ -194,7 +194,7 @@ async function manejarMensaje(msg) {
           // Notify all admins
           const admins = await getColaboradores();
           for (const [adminNum, adminData] of admins) {
-            if (adminData.nivel === 'admin' && adminNum !== numero) {
+            if (esAdmin(adminData.nivel) && adminNum !== numero) {
               enviarANumero(adminNum, `🔔 *Nueva pieza para revisar*\n\nTarea: *${pendiente.taskName}*\nEntregó: ${perfil.nombre || numero}\n\nEstá lista para revisión en ClickUp.`);
             }
           }
