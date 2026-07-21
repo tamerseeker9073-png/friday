@@ -9,6 +9,7 @@ const { getDatosJarvis } = require('../sheets/jarvis');
 const { enviarANumero } = require('./sender');
 const { construirReporteDiario } = require('../reports/daily');
 const { getColaboradores } = require('../sheets/colaboradores');
+const { esAdmin, esSupervisor } = require('../brain/access');
 const {
   getPendingOp, clearPendingOp,
   manejarClickupConversacional, ejecutarOpPendiente,
@@ -58,19 +59,27 @@ async function manejarMensaje(msg) {
     console.log(`[Handler] ${perfil.nombre}: "${texto.substring(0, 60)}"`);
 
     // ── Comandos admin (solo nivel admin, prefijo !) ───────────────────────
-    if (texto.startsWith('!') && perfil.nivel === 'admin') {
+    if (texto.startsWith('!') && esAdmin(perfil.nivel)) {
       await manejarComandoAdmin(numero, texto.slice(1).trim(), perfil);
       return;
     }
 
     // ── Skills read-only: auditoría y capacidad (admin/supervisor) ────────
-    if (perfil.nivel === 'admin' || perfil.nivel === 'supervisor') {
+    if (esSupervisor(perfil.nivel)) {
       if (/\b(audit[aá]|auditar|auditor[ií]a|hay algo (raro|trabado|mal)|revis[aá] el tablero|chequ[eé]a el tablero)\b/i.test(texto)) {
         try {
           const { auditarTablero } = require('../brain/skills');
           const { total, hallazgos } = await auditarTablero();
-          if (!hallazgos.length) enviarANumero(numero, `Auditoría OK ✅ — ${total} tareas activas, nada raro.`);
-          else enviarANumero(numero, `🔎 Auditoría del tablero (${total} activas):\n\n${hallazgos.join('\n')}\n\nDecime si querés que arregle alguna.`);
+          if (!hallazgos.length) {
+            enviarANumero(numero, `✅ Tablero OK — ${total} tareas activas, nada raro.`);
+          } else {
+            let msg = `🔎 *Auditoría del tablero* — ${total} tareas activas\n`;
+            msg += '─────────────────────\n';
+            msg += hallazgos.join('\n');
+            msg += '\n─────────────────────\n';
+            msg += `Decime si querés que arregle algo.`;
+            enviarANumero(numero, msg);
+          }
         } catch (e) { console.error('[Skill audit]', e.message); enviarANumero(numero, 'No pude auditar el tablero ahora.'); }
         return;
       }
@@ -88,7 +97,7 @@ async function manejarMensaje(msg) {
     }
 
     // ── Skills write: ClickUp conversacional y batch (solo admin) ────────
-    if (perfil.nivel === 'admin') {
+    if (esAdmin(perfil.nivel)) {
       // Skill #5 — Cierre mensual
       if (/\b(cierre\s+del?\s+mes|cerr[aá]\s+(?:el\s+mes|(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)))\b/i.test(texto)) {
         try {
@@ -112,7 +121,7 @@ async function manejarMensaje(msg) {
 
     // ── FASE 4: Manejo de confirmación pendiente ──────────────────────────
     // Check ClickUp op confirmations first (admin only)
-    if (perfil.nivel === 'admin') {
+    if (esAdmin(perfil.nivel)) {
       const opPendiente = getPendingOp(numero);
       if (opPendiente) {
         if (esConfirmacion(texto)) {
@@ -173,7 +182,7 @@ async function manejarMensaje(msg) {
     try {
       todasLasTareas = await getTareasTodos();
       if (perfil.clickupId) {
-        if (perfil.nivel === 'admin' || perfil.nivel === 'supervisor') {
+        if (esSupervisor(perfil.nivel)) {
           tareas = todasLasTareas.slice(0, 60);
         } else {
           const { atrasadas, paraHoy, proximamente } = clasificarTareasParaColaborador(
@@ -209,7 +218,7 @@ async function manejarMensaje(msg) {
 
     // ── FASE 3: Respuesta con Claude ──────────────────────────────────────
     let datosJarvis = null;
-    if (perfil.nivel === 'admin') {
+    if (esAdmin(perfil.nivel)) {
       try { datosJarvis = await getDatosJarvis(); } catch (_) {}
     }
     const systemPrompt = buildSystemPromptConversacion(perfil, tareas, datosJarvis);
