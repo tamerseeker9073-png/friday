@@ -20,25 +20,56 @@ const JARVIS_MONTHLY_ENABLED = process.env.JARVIS_MONTHLY_ENABLED === 'true';
 
 async function enviarReportesDiarios() {
   console.log('[Scheduler] Iniciando reportes diarios...');
+  const enviados = [];
+  const salteados = [];
+
   try {
     const colaboradores = await getColaboradores();
     const todasLasTareas = await getTareasTodos();
 
+    console.log(`[Scheduler] Colaboradores cargados: ${colaboradores.size}`);
+    for (const [, c] of colaboradores) {
+      console.log(`[Scheduler]   → ${c.nombre} (${c.nivel}) clickupId=${c.clickupId || 'NONE'}`);
+    }
+
     for (const [numero, colaborador] of colaboradores) {
       if (reporteYaEnviado(numero, 'daily')) {
         console.log(`[Scheduler] Reporte diario ya enviado a ${colaborador.nombre}`);
+        salteados.push(`${colaborador.nombre} (ya enviado)`);
         continue;
       }
       try {
         const reporte = await construirReporteDiario(colaborador, todasLasTareas);
-        if (!reporte) continue;
+        if (!reporte) {
+          salteados.push(`${colaborador.nombre} (sin tareas/clickupId)`);
+          continue;
+        }
         enviarANumero(numero, reporte);
         marcarReporteEnviado(numero, 'daily');
+        enviados.push(colaborador.nombre);
         console.log(`[Scheduler] Reporte diario encolado para ${colaborador.nombre}`);
       } catch (err) {
         console.error(`[Scheduler] Error en reporte de ${colaborador.nombre}:`, err.message);
+        salteados.push(`${colaborador.nombre} (error: ${err.message})`);
       }
     }
+
+    // Resumen para Pato
+    const patoNumero = process.env.PATO_NUMBER?.replace(/\D/g, '');
+    if (patoNumero) {
+      const partes = [`📋 *FRIDAY — Resumen de reportes diarios*\n`];
+      if (enviados.length > 0) {
+        partes.push(`✅ *Enviados (${enviados.length}):*`);
+        for (const n of enviados) partes.push(`• ${n}`);
+        partes.push('');
+      }
+      if (salteados.length > 0) {
+        partes.push(`⚠ *No enviados (${salteados.length}):*`);
+        for (const n of salteados) partes.push(`• ${n}`);
+      }
+      enviarANumero(patoNumero, partes.join('\n').trim());
+    }
+
   } catch (err) {
     console.error('[Scheduler] Error en reportes diarios:', err.message);
   }
